@@ -1,0 +1,410 @@
+// src/components/RuleNodeCard.tsx
+/**
+ * RuleNodeCard Component
+ * 
+ * Displays a single rule block (node) on the canvas with two modes:
+ * - View Mode: Shows block info, clickable to edit
+ * - Edit Mode: Expandable form to configure block parameters
+ * 
+ * Supports configuration for:
+ * - Trigger blocks (cron expressions, feed updates)
+ * - Condition blocks (field comparisons)
+ * - Action blocks (email, relay toggles, data generation)
+ */
+
+import * as React from "react";
+import {
+  Paper,
+  Typography,
+  Button,
+  Stack,
+  Chip,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+} from "@mui/material";
+import type { CanvasNode } from "../../types/RulesBuilder";
+
+export default function RuleNodeCard({
+  node,
+  onRemove,
+  onUpdate,
+}: {
+  node: CanvasNode;
+  onRemove: () => void;
+  onUpdate?: (updatedNode: CanvasNode) => void;
+}) {
+  // State management for edit mode toggle and form data
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [formData, setFormData] = React.useState(node.data || {});
+
+  // Handler to save configuration changes and exit edit mode
+  const handleSave = () => {
+    if (onUpdate) {
+      onUpdate({ ...node, data: formData });
+    }
+    setIsEditing(false);
+  };
+
+  // Get gradient colors based on node type
+  const getNodeGradient = () => {
+    if (node.type === "trigger") return "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+    if (node.type === "condition") return "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)";
+    if (node.type === "action") return "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)";
+    return "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+  };
+
+  // Handler to discard changes and exit edit mode
+  const handleCancel = () => {
+    setFormData(node.data || {});
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <Paper sx={{
+        p: 2.5,
+        borderRadius: 2,
+        background: "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)",
+        color: "white",
+        boxShadow: "0 10px 40px rgba(30, 60, 114, 0.4)",
+        border: "1px solid rgba(255, 255, 255, 0.15)",
+      }}>
+        <Stack spacing={2}>
+          {/* Header showing block kind and label */}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Chip
+              label={node.kind}
+              size="small"
+              sx={{
+                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                color: "white",
+                fontWeight: 600,
+              }}
+            />
+            <Typography fontWeight={700} fontSize={14}>
+              Configure {node.label}
+            </Typography>
+          </Stack>
+
+          {/* TRIGGER CONFIGURATION FORM */}
+          {/* Allows users to set trigger type (cron schedule or feed update) */}
+          {node.kind === "trigger" && (
+            <Stack spacing={1.5}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Type</InputLabel>
+                <Select
+                  value={formData.type || "cron"}
+                  label="Type"
+                  onChange={(e) =>
+                    setFormData({ ...formData, type: e.target.value })
+                  }
+                >
+                  <MenuItem value="cron">Cron</MenuItem>
+                  <MenuItem value="feed_update">Feed Update</MenuItem>
+                </Select>
+              </FormControl>
+              {/* Cron trigger - Set schedule expression and optional timezone */}
+              {formData.type === "cron" && (
+                <>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Cron Expression"
+                    placeholder="0 9 * * *"
+                    value={formData.value || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, value: e.target.value })
+                    }
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Timezone (optional)"
+                    placeholder="UTC"
+                    value={formData.timezone || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, timezone: e.target.value })
+                    }
+                  />
+                </>
+              )}
+
+              {/* Feed update trigger - Monitor changes on a specific feed/sensor */}              {formData.type === "feed_update" && (
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Feed Alias"
+                  placeholder="temperature"
+                  value={formData.value || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, value: e.target.value })
+                  }
+                />
+              )}
+            </Stack>
+          )}
+
+          {/* CONDITION CONFIGURATION FORM */}
+          {/* Allows users to define comparison conditions: field, operator, value */}
+          {node.kind === "condition" && (
+            <Stack spacing={1.5}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Field"
+                placeholder="temp, humidity, duration..."
+                value={formData.field || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, field: e.target.value })
+                }
+              />
+              <FormControl fullWidth size="small">
+                <InputLabel>Operator</InputLabel>
+                <Select
+                  value={formData.op || ">"}
+                  label="Operator"
+                  onChange={(e) =>
+                    setFormData({ ...formData, op: e.target.value })
+                  }
+                >
+                  <MenuItem value=">">Greater than (&gt;)</MenuItem>
+                  <MenuItem value="<">Less than (&lt;)</MenuItem>
+                  <MenuItem value=">=" >Greater or equal (&gt;=)</MenuItem>
+                  <MenuItem value="<=">Less or equal (&lt;=)</MenuItem>
+                  <MenuItem value="==">Equal (==)</MenuItem>
+                  <MenuItem value="!=">Not equal (!=)</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                fullWidth
+                size="small"
+                label="Value"
+                type="number"
+                value={formData.value || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, value: e.target.value })
+                }
+              />
+            </Stack>
+          )}
+
+          {/* ACTION CONFIGURATION FORM */}
+          {/* Supports three action types: send_email, toggle_relay, generate */}
+          {node.kind === "action" && (
+            <Stack spacing={1.5}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Action Type</InputLabel>
+                <Select
+                  value={formData.type || "send_email"}
+                  label="Action Type"
+                  onChange={(e) =>
+                    setFormData({ ...formData, type: e.target.value })
+                  }
+                >
+                  <MenuItem value="send_email">Send Email</MenuItem>
+                  <MenuItem value="toggle_relay">Toggle Relay</MenuItem>
+                  <MenuItem value="generate">Generate</MenuItem>
+                </Select>
+              </FormControl>
+
+              {/* Send Email Action - Configure recipient, subject, body */}              {formData.type === "send_email" && (
+                <>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Email"
+                    type="email"
+                    value={formData.payload?.to || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        payload: { ...formData.payload, to: e.target.value },
+                      })
+                    }
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Subject"
+                    value={formData.payload?.title || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        payload: {
+                          ...formData.payload,
+                          title: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Body"
+                    multiline
+                    rows={2}
+                    value={formData.payload?.body || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        payload: { ...formData.payload, body: e.target.value },
+                      })
+                    }
+                  />
+                </>
+              )}
+
+              {/* Toggle Relay Action - Configure actuator and state (ON/OFF) */}              {formData.type === "toggle_relay" && (
+                <>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Actuator Alias"
+                    value={formData.payload?.actuator_alias || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        payload: {
+                          ...formData.payload,
+                          actuator_alias: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                  <FormControl fullWidth size="small">
+                    <InputLabel>State</InputLabel>
+                    <Select
+                      value={formData.payload?.state || "ON"}
+                      label="State"
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          payload: {
+                            ...formData.payload,
+                            state: e.target.value,
+                          },
+                        })
+                      }
+                    >
+                      <MenuItem value="ON">ON</MenuItem>
+                      <MenuItem value="OFF">OFF</MenuItem>
+                    </Select>
+                  </FormControl>
+                </>
+
+              )}
+              {/* Generate Action - Create/generate a value for a feed */}              {formData.type === "generate" && (
+                <>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Feed Alias"
+                    value={formData.payload?.feed_alias || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        payload: {
+                          ...formData.payload,
+                          feed_alias: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Value"
+                    type="number"
+                    value={formData.payload?.value || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        payload: { ...formData.payload, value: e.target.value },
+                      })
+                    }
+                  /
+              size="small"
+              variant="outlined"
+              onClick={handleCancel}
+              sx={{ color: "white", borderColor: "rgba(255, 255, 255, 0.3)" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="small"
+              variant="contained"
+              onClick={handleSave}
+              sx={{ backgroundColor: "rgba(76, 175, 80, 0.9)", color: "white" } - Apply or discard configuration changes */}
+          <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Button size="small" onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button
+              size="small"
+              variant="contained"
+              onClick={handleSave}
+            >
+              Save
+            </Button>
+          </Stack>
+        </Stack>
+      </Paper>
+    );
+  }
+
+  // View Mode - Shows compact block card, clickable to enter edit mode
+  return (
+    <Paper
+      sx={{
+        p: 2,
+        borderRadius: 3,        background: getNodeGradient(),
+        color: "white",
+        boxShadow: "0 8px 32px rgba(102, 126, 234, 0.3)",
+        border: "1px solid rgba(255, 255, 255, 0.15)",
+        transition: "all 0.3s ease-in-out",        cursor: "pointer",
+        "&:hover": { bgcolor: "#f9f9f9" },
+      }}
+      onClick={() => setIsEditing(true)}
+    >
+      <Stack direction="row" alignItems="center" spacing={1}>
+        <Chip
+          label={node.kind}
+          size="small"
+          sx={{
+            backgroundColor: "rgba(255, 255, 255, 0.2)",
+            color: "white",
+            fontWeight: 600,
+          }}
+        />
+        <Typography fontWeight={700}>{node.label}</Typography>
+        {/* Show "configured" badge if block has configuration data */}
+        {node.data && Object.keys(node.data).length > 0 && (
+          <Chip
+            label="configured"
+            size="small"
+            variant="outlined"
+            sx={{
+              color: "white",
+              borderColor: "rgba(76, 175, 80, 0.6)",
+              backgroundColor: "rgba(76, 175, 80, 0.1)",
+            }}
+          />
+        )}
+        {/* Remove button with stopPropagation to prevent entering edit mode */}
+        <Button
+          sx={{ ml: "auto" }}
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+        >
+          Remove
+        </Button>
+      </Stack>
+    </Paper>
+  );
+}
